@@ -8,6 +8,7 @@ const schema = mongoose.Schema({
     phone: String,
     verified: { type: Boolean, default: false },
     verification_code: { type: String, select: false },
+    verification_code_validation: { type: Number, select: false },
     forgot_password_code: { type: String, select: false },
     forgot_password_code_validation: { type: Number, select: false },
 },{
