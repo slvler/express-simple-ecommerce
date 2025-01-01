@@ -1,8 +1,9 @@
-const mongoose = require("mongoose")
+const mongoose = require("mongoose");
 
-const schema = mongoose.Schema({
+const schema = mongoose.Schema(
+  {
     email: { type: String, required: true },
-    password: { type: String, required: true, trim: true, select:false },
+    password: { type: String, required: true, trim: true, select: false },
     first_name: String,
     last_name: String,
     phone: String,
@@ -11,12 +12,15 @@ const schema = mongoose.Schema({
     verification_code_validation: { type: Number, select: false },
     forgot_password_code: { type: String, select: false },
     forgot_password_code_validation: { type: Number, select: false },
-},{
-        timestamps:{
-            createdAt: "created_at",
-            updatedAt: "updated_at"
-        },
-});
+    expireAt: { type: Date, default: Date.now },
+  },
+  {
+    timestamps: {
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
+  },
+);
 
 const User = mongoose.model("User", schema);
 module.exports = User;

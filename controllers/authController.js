@@ -18,6 +18,9 @@ const {
 const {
   changePasswordValidation,
 } = require("../validations/changePasswordValidation.js");
+const {
+  verifyChangePasswordValidation,
+} = require("../validations/verifyChangePasswordValidation.js");
 
 const signup = async (req, res) => {
   try {
@@ -296,11 +299,110 @@ const changePassword = async (req, res) => {
   }
 };
 
+const sendForgotPasswordCode = async (req, res) => {
+  const { email } = req.body;
+
+  const exists_user = await User.findOne({ email: email });
+
+  if (!exists_user) {
+    return res
+      .status(404)
+      .json({ success: false, message: "User does not exists!" });
+  }
+
+  const code_value = Math.floor(Math.random() * 1000000).toString();
+
+  let info = await transform.sendMail({
+    from: MAIL_SENDING_ADDRESS,
+    to: exists_user.email,
+    subject: "verification code",
+    html: "<h1>" + code_value + "</h1>",
+  });
+
+  if (info.accepted[0] === exists_user.email) {
+    const hashed_code_value = await hmacProcess(
+      code_value,
+      HMAC_VERIFICATION_CODE_SECRET,
+    );
+    exists_user.forgot_password_code = hashed_code_value;
+    exists_user.forgot_password_code_validation = Date.now();
+    await exists_user.save();
+    return res.status(200).json({ success: true, message: "Code sent!" });
+  }
+  res.status(400).json({ success: false, message: "Code sent failed!" });
+};
+const verifyForgotPasswordCode = async (req, res) => {
+  const { email, provided_code, new_password } = req.body;
+
+  const { error, value } = verifyChangePasswordValidation.validate({
+    email,
+    provided_code,
+    new_password,
+  });
+  if (error) {
+    return res.status(401).json({
+      success: false,
+      message: error.details[0].message,
+    });
+  }
+
+  const code_value = provided_code.toString();
+
+  const existing_user = await User.findOne({ email: email }).select(
+    "+forgot_password_code +forgot_password_code_validation",
+  );
+
+  if (!existing_user) {
+    return res
+      .status(401)
+      .json({ success: false, message: "User does not exists!" });
+  }
+
+  if (
+    !existing_user.forgot_password_code ||
+    !existing_user.forgot_password_code_validation
+  ) {
+    return res
+      .status(400)
+      .json({ success: false, message: "something is wrong with the code!" });
+  }
+
+  if (
+    Date.now() - existing_user.forgot_password_code_validation >
+    5 * 60 * 1000
+  ) {
+    return res
+      .status(400)
+      .json({ success: false, message: "code has been expired!" });
+  }
+
+  const hashed_code_value = await hmacProcess(
+    code_value,
+    HMAC_VERIFICATION_CODE_SECRET,
+  );
+
+  if (hashed_code_value === existing_user.forgot_password_code) {
+    const hashed_password = await doHash(new_password, SALT);
+    existing_user.password = hashed_password;
+    existing_user.forgotPasswordCode = undefined;
+    existing_user.forgotPasswordCodeValidation = undefined;
+    await existing_user.save();
+    return res
+      .status(200)
+      .json({ success: true, message: "Password updated!!" });
+  }
+  return res
+    .status(400)
+    .json({ success: false, message: "unexpected occured!!" });
+};
+
 module.exports = {
   signup,
   signin,
   sendVerificationCode,
   verifyVerificationCode,
   changePassword,
+  sendForgotPasswordCode,
+  verifyForgotPasswordCode,
   logout,
 };
